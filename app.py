@@ -137,13 +137,11 @@ def handle_requests():
         token = data[0]['token']
         encrypt = enc(uid)
 
-        # Pehle check karne ke liye request bheji
         before = make_request(encrypt, server_name, token)
         jsone = MessageToJson(before)
         data = json.loads(jsone)
         before_like = int(data['AccountInfo'].get('Likes', 0))
 
-        # URL Select karein
         if server_name == "IND":
             url = "https://client.ind.freefiremobile.com/LikeProfile"
         elif server_name in {"BR", "US", "SAC", "NA"}:
@@ -151,10 +149,20 @@ def handle_requests():
         else:
             url = "https://clientbp.ggblueshark.com/LikeProfile"
 
-        # 100 random tokens ke sath like bheje
-        asyncio.run(send_multiple_requests(uid, server_name, url))
+        # FIX: Vercel ke liye event loop handle
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+            
+        if loop and loop.is_running():
+            # Agar loop already running hai toh create new task
+            import nest_asyncio
+            nest_asyncio.apply()
+            asyncio.run(send_multiple_requests(uid, server_name, url))
+        else:
+            asyncio.run(send_multiple_requests(uid, server_name, url))
 
-        # Baad mein check karne ke liye request bheji
         after = make_request(encrypt, server_name, token)
         jsone = MessageToJson(after)
         data = json.loads(jsone)
@@ -162,7 +170,7 @@ def handle_requests():
         after_like = int(data['AccountInfo']['Likes'])
         id = int(data['AccountInfo']['UID'])
         name = str(data['AccountInfo']['PlayerNickname'])
-        level = int(data['AccountInfo'].get('Level', 0))  # Sirf ek baar level
+        level = int(data['AccountInfo'].get('Level', 0))
 
         like_given = after_like - before_like
         status = 1 if like_given != 0 else 2
@@ -172,7 +180,7 @@ def handle_requests():
             "LikesafterCommand": after_like,
             "LikesbeforeCommand": before_like,
             "PlayerNickname": name,
-            "Level": level,  # Nickname ki tarah sirf ek baar
+            "Level": level,
             "UID": id,
             "status": status
         }
